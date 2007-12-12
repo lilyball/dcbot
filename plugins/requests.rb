@@ -50,14 +50,20 @@ class RequestPlugin < PluginBase
   TIME_FORMAT = "%a %b %d %H:%M:%S %Z %Y"
   # !request
   def self.cmd_request(socket, sender, isprivate, args)
-    req = Request.new(:request => args, :submitter => sender, :requestTime => Time.now)
-    if req.save then
-      socket.sendPublicMessage("#{sender} has requested ##{request.id} \"#{args}\"")
-      if isprivate then
-        socket.sendPrivateMessage(sender, "Request ##{request.id} submitted for \"#{args}\"")
-      end
+    args.strip!
+    if args.blank? then
+      arghelp, desc = cmd_request_help
+      socket.sendPrivateMessage(sender, "Usage: !request #{arghelp.nil? ? "" : "#{arghelp} "} - #{arghelp}")
     else
-      req.sendErrors(socket, sender)
+      request = Request.new(:request => args, :submitter => sender)
+      if request.save then
+        socket.sendPublicMessage("#{sender} has requested ##{request.id} \"#{args}\"")
+        if isprivate then
+          socket.sendPrivateMessage(sender, "Request ##{request.id} submitted for \"#{args}\"")
+        end
+      else
+        req.sendErrors(socket, sender)
+      end
     end
   end
   
@@ -67,7 +73,7 @@ class RequestPlugin < PluginBase
   
   # !list
   def self.cmd_list(socket, sender, isprivate, args)
-    openRequests = Request.find_all_by_fillTime(nil)
+    openRequests = Request.find_all_by_filled_at(nil)
     if openRequests.blank? then
       socket.sendPrivateMessage(sender, "No open requests")
     else
@@ -76,13 +82,13 @@ class RequestPlugin < PluginBase
       format = "  #%-4d \"%s\" by %s - %s"
       socket.sendPrivateMessage(sender, "Claimed requests:") unless claimedRequests.blank?
       claimedRequests.each do |request|
-        message = format % [request.id, request.request, request.submitter, request.requestTime.strftime(TIME_FORMAT)]
+        message = format % [request.id, request.request, request.submitter, request.created_at.strftime(TIME_FORMAT)]
         message << " - claimed by #{request.claimer}"
         socket.sendPrivateMessage(sender, message)
       end
       socket.sendPrivateMessage(sender, "Unclaimed requests:") unless unclaimedRequests.blank?
       unclaimedRequests.each do |request|
-        message = format % [request.id, request.request, request.submitter, request.requestTime.strftime(TIME_FORMAT)]
+        message = format % [request.id, request.request, request.submitter, request.created_at.strftime(TIME_FORMAT)]
         socket.sendPrivateMessage(sender, message)
       end
     end
@@ -97,13 +103,13 @@ class RequestPlugin < PluginBase
     if isprivate
       begin
         request = Request.find(args.to_i)
-        if request.fillTime? then
+        if request.filled_at? then
           socket.sendPrivateMessage(sender, "That request has already been filled")
         else
           if request.claimer? and request.claimer != sender then
             socket.sendPrivateMessage(sender, "Overriding previous claim by #{request.claimer}")
             socket.sendPrivateMessage(request.claimer, "#{sender} is overriding your claim on request ##{request.id} - \"#{request.request}\" by #{request.submitter}")
-            request.lastClaimer = request.claimer
+            request.last_claimer = request.claimer
           end
           request.claimer = sender
           if request.save then
@@ -129,12 +135,12 @@ class RequestPlugin < PluginBase
     if isprivate
       begin
         request = Request.find(args.to_i)
-        if request.fillTime? then
+        if request.filled_at? then
           socket.sendPrivateMessage(sender, "That request has already been filled")
         else
           if request.claimer? and request.claimer == sender then
-            request.claimer = request.lastClaimer
-            request.lastClaimer = nil
+            request.claimer = request.last_claimer
+            request.last_claimer = nil
             if request.save then
               socket.sendPrivateMessage(sender, "Forgetting claim for request ##{request.id}")
               if request.claimer? then
@@ -143,8 +149,8 @@ class RequestPlugin < PluginBase
             else
               request.sendErrors(socket, sender)
             end
-          elsif request.lastClaimer? and request.lastClaimer == sender then
-            request.lastClaimer = nil
+          elsif request.last_claimer? and request.last_claimer == sender then
+            request.last_claimer = nil
             if request.save then
               socket.sendPrivateMessage(sender, "Forgetting prior claim for request ##{request.id}")
             else
@@ -171,23 +177,23 @@ class RequestPlugin < PluginBase
     if isprivate
       begin
         request = Request.find(args.to_i)
-        if request.fillTime? then
+        if request.filled_at? then
           socket.sendPrivateMessage(sender, "That request has already been filled")
         else
           if request.claimer? and request.claimer != sender then
             claimOverridden = true
-            request.lastClaimer = request.claimer # fairly useless as filled requests are frozen
+            request.last_claimer = request.claimer # fairly useless as filled requests are frozen
           else
             claimOverridden = false
           end
           request.claimer = sender
-          request.fillTime = Time.now
+          request.filled_at = Time.now
           if request.save then
             socket.sendPrivateMessage(sender, "Request ##{request.id} filled")
             if claimOverridden then
-              socket.sendPrivateMessage(request.lastClaimer, "#{request.claimer} has filled your claimed request ##{request.id} - \"#{request.request}\" by #{request.submitter}")
+              socket.sendPrivateMessage(request.last_claimer, "#{request.claimer} has filled your claimed request ##{request.id} - \"#{request.request}\" by #{request.submitter}")
             end
-            timeDelta = (request.fillTime - request.requestTime).englishTimeDelta
+            timeDelta = (request.filled_at - request.created_at).englishTimeDelta
             socket.sendPrivateMessage(request.submitter, "Request ##{request.id} - \"#{request.request}\" has been filled by #{sender} - it took #{timeDelta}")
             socket.sendPublicMessage("#{sender} has filled request ##{request.id} - \"#{request.request}\" by #{request.submitter} - it took #{timeDelta}")
           else
@@ -209,15 +215,15 @@ class RequestPlugin < PluginBase
   # !status
   def self.cmd_status(socket, sender, isprivate, args)
     submittedRequests = Request.find(:all, :conditions => ["submitter = ?", sender])
-    claimedRequests = Request.find(:all, :conditions => ["claimer = ? AND fillTime IS NULL", sender])
+    claimedRequests = Request.find(:all, :conditions => ["claimer = ? AND filled_at IS NULL", sender])
     if submittedRequests.blank? and claimedRequests.blank? then
       socket.sendPrivateMessage(sender, "No submitted or claimed requests")
     else
       unless submittedRequests.blank?
         socket.sendPrivateMessage(sender, "Submitted requests:")
         submittedRequests.each do |request|
-          message = "  #%-4d \"%s\" - %s" % [request.id, request.request, request.requestTime.strftime(TIME_FORMAT)]
-          if request.fillTime? then
+          message = "  #%-4d \"%s\" - %s" % [request.id, request.request, request.created_at.strftime(TIME_FORMAT)]
+          if request.filled_at? then
             message << " - filled by #{request.claimer}"
           else
             message << " - claimed by #{request.claimer}" if request.claimer?
@@ -228,7 +234,7 @@ class RequestPlugin < PluginBase
       unless claimedRequests.blank?
         socket.sendPrivateMessage(sender, "Claimed requests:")
         claimedRequests.each do |request|
-          message = "  #%-4d \"%s\" by %s - %s" % [request.id, request.request, request.submitter, request.requestTime.strftime(TIME_FORMAT)]
+          message = "  #%-4d \"%s\" by %s - %s" % [request.id, request.request, request.submitter, request.created_at.strftime(TIME_FORMAT)]
           socket.sendPrivateMessage(sender, message)
         end
       end
@@ -244,7 +250,7 @@ class RequestPlugin < PluginBase
     if isprivate
       begin
         request = Request.find(args.to_i)
-        if request.fillTime? then
+        if request.filled_at? then
           socket.sendPrivateMessage(sender, "Request ##{request.id} could not be deleted as it has already been filled")
         elsif request.submitter == sender then
           request.destroy

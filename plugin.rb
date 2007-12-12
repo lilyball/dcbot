@@ -4,7 +4,7 @@ ActiveRecord::Base.establish_connection(
   :adapter => "mysql",
   :host => "localhost",
   :username => "dcbot",
-  :database => "dcbot")
+  :database => "40thieves")
 
 class PluginBase
   @@plugins = []

@@ -7,7 +7,7 @@ require 'pp'
 
 HOSTNAME = '127.0.0.1'
 PORT = 7315
-NICKNAME = 'RubyBot'
+NICKNAME = 'RequestBot'
 
 SLEEP_TABLE = [1, 2, 5, 15, 30, 60, 120, 300, 600, 1200, 1800]
 
@@ -43,9 +43,10 @@ def runConnection
   STDERR.puts "Connected"
   
   socket.registerMessageCallback do |sender, message, isprivate|
-    #puts "#{isprivate ? "** " : ""}<#{sender}> #{message}"
+    puts "<#{sender}> #{message}" if isprivate
     if message[0,1] == PluginBase::CMD_PREFIX then
       cmd, args = message[1..-1].split(" ", 2)
+      args = "" if args.nil?
       if cmd == "reload" and isprivate then
         # special sekrit reload command
         PluginBase.loadPlugins
