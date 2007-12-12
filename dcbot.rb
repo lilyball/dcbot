@@ -23,7 +23,7 @@ def main
         sleepTime = SLEEP_TABLE[sleepIdx]
         STDERR.puts "Sleeping for #{sleepTime} seconds"
         sleep sleepTime
-        sleepIdx += 1 unless sleepIdx == SLEEP_TABLE.count - 1
+        sleepIdx += 1 unless sleepIdx == SLEEP_TABLE.size - 1
       else
         sleepIdx = 0
         STDERR.puts "Connection closed"
@@ -36,9 +36,11 @@ end
 def runConnection
   begin
     socket = DCPPSocket.new(HOSTNAME, PORT, NICKNAME)
-  rescue RuntimeError
+  rescue StandardError
     return false
   end
+  
+  STDERR.puts "Connected"
   
   socket.registerMessageCallback do |sender, message, isprivate|
     #puts "#{isprivate ? "** " : ""}<#{sender}> #{message}"
