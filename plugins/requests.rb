@@ -29,6 +29,7 @@ class ::Numeric
 end
 
 class Request < ActiveRecord::Base
+  # currently unused
   def sendErrors(socket, person)
     if request.errors.blank? then
       socket.sendPrivateMessage(sender, "An unknown error occurred while saving the request, please inform FT_[Eridius]")
@@ -56,13 +57,10 @@ class RequestPlugin < PluginBase
       socket.sendPrivateMessage(sender, "Usage: !request #{arghelp.nil? ? "" : "#{arghelp} "} - #{arghelp}")
     else
       request = Request.new(:request => args, :submitter => sender)
-      if request.save then
-        socket.sendPublicMessage("#{sender} has requested ##{request.id} \"#{args}\"")
-        if isprivate then
-          socket.sendPrivateMessage(sender, "Request ##{request.id} submitted for \"#{args}\"")
-        end
-      else
-        req.sendErrors(socket, sender)
+      request.save!
+      socket.sendPublicMessage("#{sender} has requested ##{request.id} \"#{args}\"")
+      if isprivate then
+        socket.sendPrivateMessage(sender, "Request ##{request.id} submitted for \"#{args}\"")
       end
     end
   end
@@ -112,11 +110,8 @@ class RequestPlugin < PluginBase
             request.last_claimer = request.claimer
           end
           request.claimer = sender
-          if request.save then
-            socket.sendPrivateMessage(sender, "Request ##{request.id} successfully claimed")
-          else
-            request.sendErrors(socket, sender)
-          end
+          request.save!
+          socket.sendPrivateMessage(sender, "Request ##{request.id} successfully claimed")
         end
       rescue ActiveRecord::RecordNotFound
         socket.sendPrivateMessage(sender, "That request could not be found")
@@ -141,21 +136,15 @@ class RequestPlugin < PluginBase
           if request.claimer? and request.claimer == sender then
             request.claimer = request.last_claimer
             request.last_claimer = nil
-            if request.save then
-              socket.sendPrivateMessage(sender, "Forgetting claim for request ##{request.id}")
-              if request.claimer? then
-                socket.sendPrivateMessage(request.claimer, "#{sender} has reverted claim of request ##{request.id} back to you")
-              end
-            else
-              request.sendErrors(socket, sender)
+            request.save!
+            socket.sendPrivateMessage(sender, "Forgetting claim for request ##{request.id}")
+            if request.claimer? then
+              socket.sendPrivateMessage(request.claimer, "#{sender} has reverted claim of request ##{request.id} back to you")
             end
           elsif request.last_claimer? and request.last_claimer == sender then
             request.last_claimer = nil
-            if request.save then
-              socket.sendPrivateMessage(sender, "Forgetting prior claim for request ##{request.id}")
-            else
-              request.sendErrors(socket, sender)
-            end
+            request.save!
+            socket.sendPrivateMessage(sender, "Forgetting prior claim for request ##{request.id}")
           else
             socket.sendPrivateMessage(sender, "You are not the claimer for request ##{request.id}")
           end
@@ -188,17 +177,14 @@ class RequestPlugin < PluginBase
           end
           request.claimer = sender
           request.filled_at = Time.now
-          if request.save then
-            socket.sendPrivateMessage(sender, "Request ##{request.id} filled")
-            if claimOverridden then
-              socket.sendPrivateMessage(request.last_claimer, "#{request.claimer} has filled your claimed request ##{request.id} - \"#{request.request}\" by #{request.submitter}")
-            end
-            timeDelta = (request.filled_at - request.created_at).englishTimeDelta
-            socket.sendPrivateMessage(request.submitter, "Request ##{request.id} - \"#{request.request}\" has been filled by #{sender} - it took #{timeDelta}")
-            socket.sendPublicMessage("#{sender} has filled request ##{request.id} - \"#{request.request}\" by #{request.submitter} - it took #{timeDelta}")
-          else
-            request.sendErrors(sender)
+          request.save!
+          socket.sendPrivateMessage(sender, "Request ##{request.id} filled")
+          if claimOverridden then
+            socket.sendPrivateMessage(request.last_claimer, "#{request.claimer} has filled your claimed request ##{request.id} - \"#{request.request}\" by #{request.submitter}")
           end
+          timeDelta = (request.filled_at - request.created_at).englishTimeDelta
+          socket.sendPrivateMessage(request.submitter, "Request ##{request.id} - \"#{request.request}\" has been filled by #{sender} - it took #{timeDelta}")
+          socket.sendPublicMessage("#{sender} has filled request ##{request.id} - \"#{request.request}\" by #{request.submitter} - it took #{timeDelta}")
         end
       rescue ActiveRecord::RecordNotFound
         socket.sendPrivateMessage(sender, "That request could not be found")
