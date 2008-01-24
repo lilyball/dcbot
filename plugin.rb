@@ -33,8 +33,8 @@ class PluginBase
       if plugin.methods.include? "cmd_#{cmd}" then
         begin
           plugin.method("cmd_#{cmd}").call(socket, sender, isprivate, args)
-        rescue Mysql::Error => e
-          STDERR.puts "Mysql exception raised executing cmd_#{cmd}:\n#{e.to_s}"
+        rescue StandardError => e
+          STDERR.puts "Exception raised executing cmd_#{cmd}:\n#{e.to_s}"
           # try one more time
           socket.sendPrivateMessage(sender, "An error occurred executing your command. Retrying...")
           self.initdb
