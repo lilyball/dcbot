@@ -7,8 +7,8 @@ class HelpPlugin < PluginBase
         arghelp, cmdhelp = PluginBase.command_help(cmd).call()
         message << " #{arghelp}" unless arghelp.nil? or arghelp.empty?
         message << " - #{cmdhelp}"
+        socket.sendPrivateMessage(sender, "  #{message}")
       end
-      socket.sendPrivateMessage(sender, "  #{message}")
     end
   end
   
