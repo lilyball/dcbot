@@ -6,10 +6,15 @@ end
 
 class DCPPSocket
   attr_reader :socket
+  attr :serverPort
   
-  def initialize(server, port, nickname)
+  SERVER_PORT = 1412
+  
+  def initialize(server, port, nickname, serverPort = SERVER_PORT)
     @nickname = nickname
     @messages = []
+    @serverPort = serverPort
+    @clients = []
     @messageCallback = Proc.new do |sender, message, isprivate|
       STDERR.puts "ERROR: No message callback registered"
     end
@@ -20,14 +25,29 @@ class DCPPSocket
   end
   
   def connect(server, port)
-    @socket = TCPSocket.new(server, port)
+    @hubsocket = TCPSocket.new(server, port)
+    @server = TCPServer.new('localhost', @serverPort)
   end
   
   def startRunLoop()
     catch :done do
       while true
         begin
-          parseCommand()
+          readsockets, _, _ = IO.select([@hubsocket, @server, *@clients])
+          readsockets.each do |socket|
+            if socket == @hubsocket then
+              parseCommand()
+            elsif socket == @server then
+              clientsocket << @server.accept
+              # print the client and return for now
+              STDERR.puts "Client: #{clientsocket.peeraddr.inspect}"
+              clientsocket.close
+              # @clients << clientsocket
+            else
+              # socket is a client
+              
+            end
+          end
         rescue StandardError => e
           STDERR.puts "ERROR: #{e.to_s}"
         end
@@ -48,7 +68,7 @@ class DCPPSocket
   end
   
   def close
-    @socket.close
+    @hubsocket.close
   end
   
   def processMessage(sender, message, isprivate)
@@ -58,9 +78,9 @@ class DCPPSocket
   # parses a given command
   # errors out if expected is given and doesn't match the command
   def parseCommand(expected = nil)
-    cmdstring = @socket.gets("|")
+    cmdstring = @hubsocket.gets("|")
     if cmdstring.nil?
-      @socket.close
+      @hubsocket.close
       throw :done
     end
     debug("<- #{cmdstring.inspect}")
@@ -84,13 +104,13 @@ class DCPPSocket
   def send(cmd, *args)
     message = "$#{cmd}#{args.empty? ? "" : " "}#{args.join(" ")}|"
     debug("-> #{message.inspect}")
-    @socket.write(message)
+    @hubsocket.write(message)
   end
   
   def sendMessage(nick, message)
     str = "<#{nick}> #{message}|"
     debug("-> #{str.inspect}")
-    @socket.write(str)
+    @hubsocket.write(str)
   end
   
   def lockToKey(lock)
@@ -134,8 +154,13 @@ class DCPPSocket
       end
     end
     cmd("MyINFO") { |*args| } # do nothing for MyINFO
-    cmd("ConnectToMe") { |*args| } # also ignore this - we aren't a fileserver
-    cmd("RevConnectToMe") { |nick,remote| send("RevConnectToMe", remote, nick) } # pretend to be passive
+    cmd("ConnectToMe") do |*args|
+      STDERR.puts("ConnectToMe: #{args.inspect}")
+    end # also ignore this - we aren't a fileserver
+    cmd("RevConnectToMe") do |nick,remote|
+      STDERR.puts("RevConnectToMe: #{nick} #{remote}")
+      send("RevConnectToMe", remote, nick)
+    end # pretend to be passive
     cmd("To:") do |me, from, sender, *message|
       raise "Unexpected To: data" if from != "From:" or message[0][0,1] != "$"
       processMessage(sender, message[1..-1].join(" "), true)
