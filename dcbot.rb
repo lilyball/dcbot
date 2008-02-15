@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
+require './runloop'
 require './dcppsocket'
 require './plugin'
 require 'pp'
