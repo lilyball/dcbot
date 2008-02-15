@@ -2,6 +2,7 @@
 
 require 'rubygems'
 require './runloop'
+require './config'
 require './dcppsocket'
 require './plugin'
 require 'pp'
