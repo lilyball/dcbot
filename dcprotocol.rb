@@ -31,6 +31,7 @@ class DCProtocol < EventMachine::Connection
   
   def send_command(cmd, *args)
     data = "$#{cmd}#{["", *args].join(" ")}|"
+    STDERR.puts "-> #{data}" if $debug
     send_data(data)
   end
   
@@ -44,6 +45,7 @@ class DCProtocol < EventMachine::Connection
   
   def receive_line(line)
     line.chomp!("|")
+    STDERR.puts "<- #{line}" if $debug
     cmd = line.slice!(/^\S+/)
     line.slice!(/^ /)
     
@@ -100,24 +102,14 @@ class DCClientProtocol < DCProtocol
     end
   end
   
-  def sendPublicMessage(message, isaction = false)
-    if isaction then
-      nick = "*"
-      message = "#{@nickname} #{message}"
-    else
-      nick = @nickname
-    end
-    send_data "<#{nick}> #{message}|"
+  def sendPublicMessage(message)
+    data = "<#{@nickname}> #{message}|"
+    STDERR.puts "-> #{data}" if $debug
+    send_data data
   end
   
-  def sendPrivateMessage(recipient, message, isaction = false)
-    if isaction then
-      nick = "*"
-      message = "#{@nickname} #{message}"
-    else
-      nick = @nickname
-    end
-    send_command "To:", recipient, "From:", @nickname, "$<#{nick}>", message
+  def sendPrivateMessage(recipient, message)
+    send_command "To:", recipient, "From:", @nickname, "$<#{@nickname}>", message
   end
   
   def close
@@ -342,6 +334,7 @@ EOF
       close_connection_after_writing
     else
       data = @fileio.read(40906)
+      STDERR.puts "-> #{data}" if $debug
       send_data data
     end
   end

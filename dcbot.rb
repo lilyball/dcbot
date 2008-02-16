@@ -24,6 +24,16 @@ def main
   
   config = IniReader.read(config_file)
   
+  global_config = config.find { |section| section[0] == "global" }
+  if global_config and global_config[1].has_key? "debug" then
+    debug = global_config[1]["debug"].downcase
+    if debug == "true" then
+      $debug = true
+    else
+      $debug = false
+    end
+  end
+  
   connections = config.select { |section| section[0] == "connection" }
   # FIXME: use all config sections
   connection = connections[0][1]
@@ -45,13 +55,9 @@ end
 
 def setupConnection(host, port, nickname, description, sleep)
   $socket = DCClientProtocol.connect(host, port, nickname, :description => description) do |c|
-    c.registerCallback :message do |socket, sender, message, isprivate, isaction|
+    c.registerCallback :message do |socket, sender, message, isprivate|
       if isprivate or sender == "*Dtella" then
-        if isaction then
-          puts "<*> #{sender} #{message}"
-        else
-          puts "<#{sender}> #{message}"
-        end
+        puts "<#{sender}> #{message}"
       end
       if message[0,1] == PluginBase::CMD_PREFIX then
         cmd, args = message[1..-1].split(" ", 2)
