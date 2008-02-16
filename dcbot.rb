@@ -1,26 +1,46 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
+require 'optparse'
 require './runloop'
 require './config'
 require './dcppsocket'
 require './plugin'
 require 'pp'
 
-HOSTNAME = '127.0.0.1'
-PORT = 7315
-NICKNAME = 'RequestBot'
-
 SLEEP_TABLE = [1, 2, 5, 15, 30, 60, 120, 300, 600, 1200, 1800]
 
 def main
+  # parse args
+  config_file = "dcbot.conf"
+  OptionParser.new do |opts|
+    opts.banner = "Usage: dcbot.rb [options]"
+    
+    opts.on("--config filename", "Use filename as the config file", "[default: dcbot.conf]") do |filename|
+      config_file = filename
+    end
+  end.parse!
+  
+  config = IniReader.read(config_file)
+  
+  connections = config.select { |section| section[0] == "connection" }
+  # FIXME: use all config sections
+  connection = connections[0][1]
+  host = connection["host"]
+  port = connection["port"]
+  nickname = connection["nickname"]
+  
+  if connection.has_key? "prefix" then
+    PluginBase.cmd_prefix = connection["prefix"]
+  end
+  
   catch :quit do
     sleepIdx = 0
     while true
       # if runConnection exits instead of throwing :quit
       # then the connection was closed
       # if we can't reconnect, increase our sleep time before reconnect attempts
-      if !runConnection then
+      if !runConnection(host, port, nickname) then
         STDERR.puts "Connection refused"
         sleepTime = SLEEP_TABLE[sleepIdx]
         STDERR.puts "Sleeping for #{sleepTime} seconds"
@@ -35,9 +55,10 @@ def main
   STDERR.puts "Shutting Down"
 end
 
-def runConnection
+def runConnection(host, port, nickname)
   begin
-    socket = DCPPSocket.new(HOSTNAME, PORT, NICKNAME)
+    STDERR.puts "Connecting to #{host}:#{port} as #{nickname}"
+    socket = DCPPSocket.new(host, port, nickname)
   rescue StandardError
     return false
   end
@@ -45,7 +66,7 @@ def runConnection
   STDERR.puts "Connected"
   
   socket.registerMessageCallback do |sender, message, isprivate|
-    puts "<#{sender}> #{message}" if isprivate
+    puts "<#{sender}> #{message}" if isprivate or sender == "*Dtella"
     if message[0,1] == PluginBase::CMD_PREFIX then
       cmd, args = message[1..-1].split(" ", 2)
       args = "" if args.nil?

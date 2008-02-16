@@ -9,6 +9,10 @@ class PluginBase
     @@plugins << subclass
   end
   
+  def self.cmd_prefix=(new_prefix)
+    CMD_PREFIX.replace(new_prefix)
+  end
+  
   def self.commands
     @@plugins.map { |plugin| plugin.methods.grep(/^cmd_[a-zA-Z]+$/).map { |cmd| cmd.sub(/^cmd_/, "") } }.flatten
   end
