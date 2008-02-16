@@ -49,7 +49,7 @@ class DCProtocol < EventMachine::Connection
     close_connection_after_writing
   end
   
-  def registerCallback(callbck, &block)
+  def registerCallback(callback, &block)
     @callbacks[callback] = block
   end
   
@@ -231,7 +231,7 @@ class DCProtocol < EventMachine::Connection
         STDERR.puts "Garbage data: #{line}"
       else
         line.slice!(/^ /)
-        call_callback :message, nick[1...-1], line, false, false)
+        call_callback :message, nick[1...-1], line, false, false
       end
     elsif line[0] =~ /^\$\S+/ then
       # this is a proper command

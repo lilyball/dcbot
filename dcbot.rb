@@ -27,7 +27,7 @@ def main
   # FIXME: use all config sections
   connection = connections[0][1]
   host = connection["host"]
-  port = connection["port"]
+  port = connection["port"].to_i
   nickname = connection["nickname"]
   description = connection["description"]
   
@@ -86,6 +86,7 @@ def setupConnection(host, port, nickname, description, sleep)
       end
     end
     c.registerCallback :connected do |socket|
+      puts "Connected"
       socket.registerCallback :unbind do |socket|
         if c.quit then
           # this is our only socket for the moment
