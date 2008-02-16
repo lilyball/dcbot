@@ -12,7 +12,7 @@ Dependencies
 Usage
 =====
 
-Edit dcbot.conf and then run dcbot.rb.
+Edit dcbot_example.conf, rename it to dcbot.conf, and then run dcbot.rb.
 Typing text into standard input will send it as messages to hub chat.
 
 Notes
