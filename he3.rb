@@ -1,3 +1,8 @@
+# This file came from Asami (http://asami.rubyforge.org). There is no LICENSE
+# distributed with the Asami project. I have no idea what license the Asami project
+# is intended to be distributed under, but in the absence of other information I
+# will assume the Ruby license.
+
 def huff_insert(arr,node)
 	return arr.unshift(node) if arr.length==0
 	0.upto(arr.length-1){|i|
