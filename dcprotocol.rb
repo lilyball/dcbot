@@ -247,13 +247,8 @@ class DCClientProtocol < DCProtocol
   def connect_to_peer(nick, ip, port)
     STDERR.puts "Connecting to peer: #{nick} (#{ip}:#{port})"
     @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
-      STDERR.puts "* P2P: Initialized"
       c.parent = self
-      c.registerCallback :connected do |socket|
-        STDERR.puts "* P2P: Connected"
-      end
       c.registerCallback :unbind do |socket|
-        STDERR.puts "* P2P: Disconnected"
         @peers.delete socket
       end
     end
