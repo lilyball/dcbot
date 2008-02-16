@@ -155,7 +155,7 @@ class DCProtocol < EventMachine::Connection
       nick = $2
       displaynick = $3 # ignored for now
       message = $4
-      call_callback :message, nick, true, (displaynick == "*")
+      call_callback :message, nick, message, true, (displaynick == "*")
     else
       STDERR.puts "Garbage To: #{line}"
     end
