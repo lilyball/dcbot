@@ -48,7 +48,7 @@ def setupConnection(host, port, nickname, description, sleep)
         if isaction then
           puts "<*> #{sender} #{message}"
         else
-          puts "<#{sender} #{message}"
+          puts "<#{sender}> #{message}"
         end
       end
       if message[0,1] == PluginBase::CMD_PREFIX then

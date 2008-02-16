@@ -223,21 +223,13 @@ class DCProtocol < EventMachine::Connection
     cmd = line.slice!(/^\S+/)
     line.slice!(/^ /)
     
-    if line[0] == ?< then
+    if cmd =~ /^<.*>$/ then
       # this must be a public message
-      nick = line.slice!(/^<\S*?>/)
-      if nick.nil? then
-        # huh, bad message
-        STDERR.puts "Garbage data: #{line}"
-      else
-        line.slice!(/^ /)
-        call_callback :message, nick[1...-1], line, false, false
-      end
-    elsif line[0] =~ /^\$\S+/ then
+      nick = cmd[1...-1]
+      call_callback :message, nick, line, false, false
+    elsif cmd =~ /^\$\S+$/ then
       # this is a proper command
-      line.slice!(0)
-      cmd = line.slice!(/\S+/)
-      line.slice!(/^ /)
+      cmd.slice!(0)
       # hardcode the $To: command since the colon is ugly
       # this protocol is pretty messy
       cmd = "To" if cmd == "To:"
