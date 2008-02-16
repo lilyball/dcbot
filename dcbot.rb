@@ -42,7 +42,7 @@ def main
 end
 
 def setupConnection(host, port, nickname, description, sleep)
-  socket = DCProtocol.connect(host, port, nickname, :description => description) do |c|
+  socket = DCClientProtocol.connect(host, port, nickname, :description => description) do |c|
     c.registerCallback :message do |socket, sender, message, isprivate, isaction|
       if isprivate or sender == "*Dtella" then
         if isaction then
