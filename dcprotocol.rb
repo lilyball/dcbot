@@ -107,7 +107,7 @@ class DCClientProtocol < DCProtocol
     else
       nick = @nickname
     end
-    send_data "<#{nick}> #{message}!"
+    send_data "<#{nick}> #{message}|"
   end
   
   def sendPrivateMessage(recipient, message, isaction = false)
