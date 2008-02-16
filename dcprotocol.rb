@@ -1,4 +1,5 @@
 require 'stringio'
+require 'cgi' # for entity-escaping
 require './he3'
 
 class DCProtocol < EventMachine::Connection
@@ -29,8 +30,16 @@ class DCProtocol < EventMachine::Connection
     key
   end
   
+  def sanitize(data)
+    data.gsub("|", "&#124;")
+  end
+  
+  def unsanitize(data)
+    CGI.unescapeHTML(data)
+  end
+  
   def send_command(cmd, *args)
-    data = "$#{cmd}#{["", *args].join(" ")}|"
+    data = sanitize("$#{cmd}#{["", *args].join(" ")}") + "|"
     STDERR.puts "-> #{data}" if $debug
     send_data(data)
   end
@@ -46,6 +55,7 @@ class DCProtocol < EventMachine::Connection
   def receive_line(line)
     line.chomp!("|")
     STDERR.puts "<- #{line}" if $debug
+    line = unsanitize(line)
     cmd = line.slice!(/^\S+/)
     line.slice!(/^ /)
     
@@ -103,7 +113,7 @@ class DCClientProtocol < DCProtocol
   end
   
   def sendPublicMessage(message)
-    data = "<#{@nickname}> #{message}|"
+    data = sanitize("<#{@nickname}> #{message}") + "|"
     STDERR.puts "-> #{data}" if $debug
     send_data data
   end
