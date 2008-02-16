@@ -2,7 +2,6 @@
 
 require 'rubygems'
 require 'optparse'
-require './runloop'
 require './config'
 require './dcppsocket'
 require './plugin'
