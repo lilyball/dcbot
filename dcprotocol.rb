@@ -1,6 +1,8 @@
 class DCProtocol < EventMachine::Connection
   include EventMachine::Protocols::LineText2
   
+  RUBYBOT_VERSION = 0.1
+  
   # known keys for args are:
   #   password
   #   description
@@ -8,7 +10,7 @@ class DCProtocol < EventMachine::Connection
   #   speed_class
   #   email
   def self.connect(host, port, nickname, args = {})
-    EventMachine.connect(host, port, self) do |c|
+    EventMachine::connect(host, port, self) do |c|
       c.instance_eval do
         @nickname = nickname
         @config = args
@@ -42,6 +44,7 @@ class DCProtocol < EventMachine::Connection
   end
   
   def close
+    @quit = true
     send_command("Quit")
     close_connection_after_writing
   end
@@ -50,8 +53,7 @@ class DCProtocol < EventMachine::Connection
     @callbacks[callback] = block
   end
   
-  attr_reader :nickname
-  attr_reader :hubname
+  attr_reader :nickname, :hubname, :quit
   
   # protocol implementation
   
@@ -97,7 +99,7 @@ class DCProtocol < EventMachine::Connection
       # this is us, we should respond
       send_command "Version", "1,0091"
       send_command "GetNickList"
-      send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}$", \
+      send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}<RubyBot V:#{RUBYBOT_VERSION}>$", \
                              "$#{@config[:speed]}#{@config[:speed_class].chr}$#{@config[:email]}$0$"
     else
       call_callback :user_connected, nick
@@ -201,10 +203,19 @@ class DCProtocol < EventMachine::Connection
   
   # event handling methods
   
+  def initialize(*args)
+    @quit = false
+    super
+  end
+  
   def post_init
     @data = ""
     @callbacks = {}
     set_delimiter "|"
+  end
+  
+  def connection_completed
+    call_callback :connected
   end
   
   def receive_line(line)
