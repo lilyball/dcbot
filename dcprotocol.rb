@@ -95,14 +95,15 @@ class DCProtocol < EventMachine::Connection
 end
 
 class DCClientProtocol < DCProtocol
-  RUBYBOT_VERSION = 0.1
-  
   # known keys for args are:
-  #   password
+  #   password - server password
+  #   debug - should this socket print debug data?
   #   description
   #   speed
   #   speed_class
   #   email
+  #   version - version number for the tag
+  #   slots - number of slots to declare as open
   def self.connect(host, port, nickname, args = {})
     EventMachine::connect(host, port, self) do |c|
       c.instance_eval do
@@ -112,7 +113,9 @@ class DCClientProtocol < DCProtocol
         @config[:description] ||= ""
         @config[:speed] ||= "Bot"
         @config[:speed_class] ||= 1
-        @config[:email] = ""
+        @config[:email] ||= ""
+        @config[:version] ||= "0.1"
+        @config[:slots] ||= 0
       end
       yield c if block_given?
     end
@@ -178,7 +181,7 @@ class DCClientProtocol < DCProtocol
       # this is us, we should respond
       send_command "Version", "1,0091"
       send_command "GetNickList"
-      send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}<RubyBot V:#{RUBYBOT_VERSION}>$", \
+      send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}<RubyBot V:#{@config[:version]},M:P,H:1/0/0,S:#{@config[:slots]}>$", \
                              "$#{@config[:speed]}#{@config[:speed_class].chr}$#{@config[:email]}$0$"
     else
       call_callback :user_connected, nick

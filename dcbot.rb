@@ -11,6 +11,8 @@ require 'pp'
 
 SLEEP_TABLE = [1, 2, 5, 15, 30, 60, 120, 300]
 
+RUBYBOT_VERSION = "0.1"
+
 def main
   # parse args
   options = {}
@@ -54,11 +56,13 @@ def main
     EventMachine::open_keyboard KeyboardInput
     setupConnection(host, port, nickname, description, 0)
   end
-  STDERR.puts "Shutting Down"
+  puts "Shutting Down"
 end
 
 def setupConnection(host, port, nickname, description, sleep)
-  $socket = DCClientProtocol.connect(host, port, nickname, :description => description, :debug => $debug) do |c|
+  $socket = DCClientProtocol.connect(host, port, nickname,
+                                     :description => description, :debug => $debug,
+                                     :version => RUBYBOT_VERSION) do |c|
     c.registerCallback :message do |socket, sender, message, isprivate|
       if isprivate or sender == "*Dtella" then
         puts "<#{sender}> #{message}"
