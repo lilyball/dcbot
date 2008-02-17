@@ -273,10 +273,12 @@ class DCClientProtocol < DCProtocol
   def connect_to_peer(ip, port)
     @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
       parent = self
+      debug = @debug || @config[:peer_debug]
       c.instance_eval do
         @parent = parent
         @host = ip
         @port = port
+        @debug = debug
       end
       c.call_callback :initialized
     end

@@ -24,19 +24,19 @@ def main
       options[:config_file] = filename
     end
     opts.on("--[no-]debug", "Sets the debug flag") { |flag| options[:debug] = flag }
+    opts.on("--[no-]peer-debug", "Sets the debug flag for peer connections") { |flag| options[:peer_debug] = flag }
   end.parse!
   
   config = IniReader.read(options[:config_file])
   
   global_config = config.find { |section| section[0] == "global" }
+  debug = false
   if options.has_key? :debug then
-    $debug = options[:debug]
+    debug = options[:debug]
   elsif global_config and global_config[1].has_key? "debug" then
     debug = global_config[1]["debug"].downcase
     if debug == "true" then
-      $debug = true
-    else
-      $debug = false
+      debug = true
     end
   end
   
@@ -54,15 +54,17 @@ def main
   
   EventMachine::run do
     EventMachine::open_keyboard KeyboardInput
-    setupConnection(host, port, nickname, description, 0)
+    sockopts = { :description => description,
+                 :debug => debug,
+                 :peer_debug => options[:peer_debug],
+                 :version => RUBYBOT_VERSION }
+    setupConnection(host, port, nickname, sockopts, 0)
   end
   puts "Shutting Down"
 end
 
-def setupConnection(host, port, nickname, description, sleep)
-  $socket = DCClientProtocol.connect(host, port, nickname,
-                                     :description => description, :debug => $debug,
-                                     :version => RUBYBOT_VERSION) do |c|
+def setupConnection(host, port, nickname, sockopts, sleep)
+  $socket = DCClientProtocol.connect(host, port, nickname, sockopts) do |c|
     c.registerCallback :message do |socket, sender, message, isprivate|
       if isprivate or sender == "*Dtella" then
         puts "<#{sender}> #{message}"
@@ -103,7 +105,7 @@ def setupConnection(host, port, nickname, description, sleep)
       else
         EventMachine::add_timer(SLEEP_TABLE[sleep]) do
           sleep += 1 unless sleep == SLEEP_TABLE.size - 1
-          setupConnection(host, port, nickname, description, sleep)
+          setupConnection(host, port, nickname, sockopts, sleep)
         end
       end
     end
@@ -114,7 +116,7 @@ def setupConnection(host, port, nickname, description, sleep)
           # this is our only socket for the moment
           EventMachine.stop_event_loop
         else
-          setupConnection(host, port, nickname, description, 0)
+          setupConnection(host, port, nickname, sockopts, 0)
         end
       end
     end
