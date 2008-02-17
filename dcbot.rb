@@ -13,19 +13,23 @@ SLEEP_TABLE = [1, 2, 5, 15, 30, 60, 120, 300]
 
 def main
   # parse args
-  config_file = "dcbot.conf"
+  options = {}
+  options[:config_file] = "dcbot.conf"
   OptionParser.new do |opts|
     opts.banner = "Usage: dcbot.rb [options]"
     
     opts.on("--config filename", "Use filename as the config file", "[default: dcbot.conf]") do |filename|
-      config_file = filename
+      options[:config_file] = filename
     end
+    opts.on("--[no-]debug", "Sets the debug flag") { |flag| options[:debug] = flag }
   end.parse!
   
-  config = IniReader.read(config_file)
+  config = IniReader.read(options[:config_file])
   
   global_config = config.find { |section| section[0] == "global" }
-  if global_config and global_config[1].has_key? "debug" then
+  if options.has_key? :debug then
+    $debug = options[:debug]
+  elsif global_config and global_config[1].has_key? "debug" then
     debug = global_config[1]["debug"].downcase
     if debug == "true" then
       $debug = true
