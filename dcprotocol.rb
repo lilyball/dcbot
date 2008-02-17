@@ -72,10 +72,10 @@ class DCProtocol < EventMachine::Connection
       if self.respond_to? "cmd_#{cmd}" then
         self.send "cmd_#{cmd}", line
       else
-        STDERR.puts "Unknown command: $#{cmd} #{line}"
+        STDERR.puts "! Unknown command: $#{cmd} #{line}"
       end
     else
-      STDERR.puts "Garbage data: #{line}"
+      STDERR.puts "! Garbage data: #{line}"
     end
   end
   
@@ -208,18 +208,28 @@ class DCClientProtocol < DCProtocol
   def cmd_ConnectToMe(line)
     # another peer is trying to connect to me
     if line =~ /^(\S+) (\S+):(\d+)$/ then
-      nick = $1
+      mynick = $1
       ip = $2
       port = $3.to_i
-      connect_to_peer(nick, ip, port)
+      if mynick == @nickname then
+        connect_to_peer(ip, port)
+      else
+        STDERR.puts "! Strange ConnectToMe request: #{line}"
+      end
     end
   end
   
   def cmd_RevConnectToMe(line)
     if line =~ /^(\S+) (\S+)$/ then
       # for the moment we're just going to be a passive client
-      STDERR.puts "$RevConnectToMe: #{line}"
-      send_command "RevConnectToMe", $2, $1
+      nick = $1
+      mynick = $2
+      if mynick == @nickname then
+        STDERR.puts "* Bouncing RevConnectToMe back to user: #{nick}"
+        send_command "RevConnectToMe", mynick, nick
+      else
+        STDERR.puts "! Strange RevConnectToMe request: #{line}"
+      end
     end
   end
   
@@ -246,11 +256,12 @@ class DCClientProtocol < DCProtocol
   
   # utility methods
   
-  def connect_to_peer(nick, ip, port)
-    STDERR.puts "Connecting to peer: #{nick} (#{ip}:#{port})"
+  def connect_to_peer(ip, port)
+    STDERR.puts "* Connecting to peer: #{ip}:#{port}"
     @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
       c.parent = self
       c.registerCallback :unbind do |socket|
+        STDERR.puts "* Connection to peer closed"
         @peers.delete socket
       end
     end
@@ -312,7 +323,8 @@ EOF
     direction, rnd = line.split(" ")
     if direction != "Download" then
       # why did they send me a ConnectToMe if they don't want to download?
-      close_connection
+      STDERR.puts "! Unexpected peer direction: #{direction}"
+      # close_connection
     end
   end
   
@@ -351,5 +363,9 @@ EOF
   
   def cmd_Canceled(line)
     close_connection
+  end
+  
+  def cmd_Error(line)
+    STDERR.puts "! Peer Error: #{line}"
   end
 end
