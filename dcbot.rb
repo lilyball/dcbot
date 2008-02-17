@@ -58,7 +58,7 @@ def main
 end
 
 def setupConnection(host, port, nickname, description, sleep)
-  $socket = DCClientProtocol.connect(host, port, nickname, :description => description) do |c|
+  $socket = DCClientProtocol.connect(host, port, nickname, :description => description, :debug => $debug) do |c|
     c.registerCallback :message do |socket, sender, message, isprivate|
       if isprivate or sender == "*Dtella" then
         puts "<#{sender}> #{message}"

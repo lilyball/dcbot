@@ -40,8 +40,12 @@ class DCProtocol < EventMachine::Connection
   
   def send_command(cmd, *args)
     data = sanitize("$#{cmd}#{["", *args].join(" ")}") + "|"
-    STDERR.puts "-> #{data}" if $debug
     send_data(data)
+  end
+  
+  def send_data(data)
+    STDERR.puts "-> #{data}" if @debug
+    super
   end
   
   def call_callback(callback, *args)
@@ -54,7 +58,7 @@ class DCProtocol < EventMachine::Connection
   
   def receive_line(line)
     line.chomp!("|")
-    STDERR.puts "<- #{line}" if $debug
+    STDERR.puts "<- #{line}" if @debug
     line = unsanitize(line)
     cmd = line.slice!(/^\S+/)
     line.slice!(/^ /)
@@ -81,6 +85,7 @@ class DCProtocol < EventMachine::Connection
   
   def post_init
     @callbacks = {}
+    @debug = false
     set_delimiter "|"
   end
   
@@ -103,6 +108,7 @@ class DCClientProtocol < DCProtocol
       c.instance_eval do
         @nickname = nickname
         @config = args
+        @debug = args[:debug]
         @config[:description] ||= ""
         @config[:speed] ||= "Bot"
         @config[:speed_class] ||= 1
@@ -114,7 +120,6 @@ class DCClientProtocol < DCProtocol
   
   def sendPublicMessage(message)
     data = sanitize("<#{@nickname}> #{message}") + "|"
-    STDERR.puts "-> #{data}" if $debug
     send_data data
   end
   
@@ -359,7 +364,6 @@ EOF
       close_connection_after_writing
     else
       data = @fileio.read(40906)
-      STDERR.puts "-> #{data}" if $debug
       send_data data
     end
   end
