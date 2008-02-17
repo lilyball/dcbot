@@ -53,8 +53,8 @@ class RequestPlugin < PluginBase
   def self.cmd_request(socket, sender, isprivate, args)
     args.strip!
     if args.blank? then
+      HelpPlugin.send_usage(socket, sender, "request")
       arghelp, desc = cmd_request_help
-      socket.sendPrivateMessage(sender, "Usage: !request #{arghelp.nil? ? "" : "#{arghelp} "} - #{arghelp}")
     else
       request = Request.new(:request => args, :submitter => sender)
       request.save!
