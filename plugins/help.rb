@@ -1,14 +1,18 @@
 class HelpPlugin < PluginBase
   def self.cmd_help(socket, sender, isprivate, args)
-    socket.sendPrivateMessage(sender, "Available commands are:")
-    PluginBase.commands.each do |cmd|
-      message = "#{CMD_PREFIX}#{cmd}"
-      if PluginBase.has_command_help?(cmd) then
-        arghelp, cmdhelp = PluginBase.command_help(cmd).call()
-        message << " #{arghelp}" unless arghelp.nil? or arghelp.empty?
-        message << " - #{cmdhelp}"
-        socket.sendPrivateMessage(sender, "  #{message}")
+    args.strip!
+    if args.blank? or not PluginBase.has_command?(args) then
+      if not args.blank? then
+        socket.sendPrivateMessage(sender, "Unknown command '#{args}'.")
       end
+      socket.sendPrivateMessage(sender, "Available commands are:")
+      PluginBase.commands.each do |cmd|
+        if PluginBase.has_command_help?(cmd) then
+          socket.sendPrivateMessage(sender, "  #{self.command_help(cmd)}")
+        end
+      end
+    else
+      self.send_usage(socket, sender, args)
     end
   end
   
@@ -29,5 +33,19 @@ EOF
   
   def self.cmd_about_help
     [nil, "Displays information about this bot"]
+  end
+  
+  def self.command_help(cmd)
+    message = "#{CMD_PREFIX}#{cmd}"
+    if PluginBase.has_command_help?(cmd) then
+      arghelp, cmdhelp = PluginBase.command_help(cmd).call()
+      message << " #{arghelp}" unless arghelp.nil? or arghelp.empty?
+      message << " - #{cmdhelp}"
+    end
+    message
+  end
+  
+  def self.send_usage(socket, user, cmd)
+    socket.sendPrivateMessage(user, "Usage: #{self.command_help(cmd)}")
   end
 end
