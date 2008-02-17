@@ -6,7 +6,7 @@ class DCProtocol < EventMachine::Connection
   include EventMachine::Protocols::LineText2
   
   def registerCallback(callback, &block)
-    @callbacks[callback] = block
+    @callbacks[callback] << block
   end
   
   def lockToKey(lock)
@@ -49,7 +49,13 @@ class DCProtocol < EventMachine::Connection
   end
   
   def call_callback(callback, *args)
-    @callbacks[callback].call(self, *args) if @callbacks.has_key? callback
+    @callbacks[callback].each do |proc|
+      begin
+        proc.call(self, *args)
+      rescue e
+        STDERR.puts "Exception: #{e.message}\n#{e.backtrae}"
+      end
+    end
   end
   
   def connection_completed
@@ -76,15 +82,15 @@ class DCProtocol < EventMachine::Connection
       if self.respond_to? "cmd_#{cmd}" then
         self.send "cmd_#{cmd}", line
       else
-        STDERR.puts "! Unknown command: $#{cmd} #{line}"
+        call_callback :error, "Unknown command: $#{cmd} #{line}"
       end
     else
-      STDERR.puts "! Garbage data: #{line}"
+      call_callback :error, "Garbage data: #{line}"
     end
   end
   
   def post_init
-    @callbacks = {}
+    @callbacks = Hash.new { |h,k| h[k] = [] }
     @debug = false
     set_delimiter "|"
   end
@@ -148,7 +154,7 @@ class DCClientProtocol < DCProtocol
   end
   
   def cmd_ValidateDenide(line)
-    STDERR.puts "Nickname in use or invalid"
+    call_callback :error, "Nickname in use or invalid"
     self.close
   end
   
@@ -156,13 +162,13 @@ class DCClientProtocol < DCProtocol
     if @config.has_key? :password
       send_command "MyPass", @config[:password]
     else
-      STDERR.puts "Password required but not given"
+      call_callback :error, "Password required but not given"
       self.close
     end
   end
   
   def cmd_BadPass(line)
-    STDERR.puts "Bad password given"
+    call_callback :error, "Bad password given"
     self.close
   end
   
@@ -222,7 +228,7 @@ class DCClientProtocol < DCProtocol
       if mynick == @nickname then
         connect_to_peer(ip, port)
       else
-        STDERR.puts "! Strange ConnectToMe request: #{line}"
+        call_callback :error, "Strange ConnectToMe request: #{line}"
       end
     end
   end
@@ -233,10 +239,10 @@ class DCClientProtocol < DCProtocol
       nick = $1
       mynick = $2
       if mynick == @nickname then
-        STDERR.puts "* Bouncing RevConnectToMe back to user: #{nick}"
+        call_callback :reverse_connection, nick
         send_command "RevConnectToMe", mynick, nick
       else
-        STDERR.puts "! Strange RevConnectToMe request: #{line}"
+        call_callback :error, "Strange RevConnectToMe request: #{line}"
       end
     end
   end
@@ -249,7 +255,7 @@ class DCClientProtocol < DCProtocol
       message = $4
       call_callback :message, nick, message, true, (displaynick == "*")
     else
-      STDERR.puts "Garbage To: #{line}"
+      call_callback :error, "Garbage $To: #{line}"
     end
   end
   
@@ -265,13 +271,14 @@ class DCClientProtocol < DCProtocol
   # utility methods
   
   def connect_to_peer(ip, port)
-    STDERR.puts "* Connecting to peer: #{ip}:#{port}"
     @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
-      c.parent = self
-      c.registerCallback :unbind do |socket|
-        STDERR.puts "* Connection to peer #{socket.remote_nick} closed"
-        @peers.delete socket
+      parent = self
+      c.instance_eval do
+        @parent = parent
+        @host = ip
+        @port = port
       end
+      c.call_callback :initialized
     end
   end
   
@@ -280,6 +287,17 @@ class DCClientProtocol < DCProtocol
   def post_init
     super
     @quit = false
+    @peers = []
+    self.registerCallback :peer_unbind do |socket, peer|
+      @peers.delete socket
+    end
+  end
+  
+  def unbind
+    super
+    @peers.each do |peer|
+      peer.close_connection
+    end
     @peers = []
   end
 end
@@ -300,11 +318,15 @@ Send a /pm with !help for help
 EOF
   DCLST_FILE_LISTING_HE3 = he3_encode(DCLST_FILE_LISTING)
   
-  attr_writer :parent
-  attr_reader :remote_nick
+  attr_reader :remote_nick, :host, :port
   
   def post_init
     super
+  end
+  
+  # callbacks triggered from the peer always begin with peer_
+  def call_callback(name, *args)
+    @parent.call_callback "peer_#{name.to_s}".to_sym, self, *args
   end
   
   def connection_completed
@@ -332,7 +354,7 @@ EOF
     direction, rnd = line.split(" ")
     if direction != "Download" then
       # why did they send me a ConnectToMe if they don't want to download?
-      STDERR.puts "! Unexpected peer direction: #{direction}"
+      call_callback :error, "Unexpected peer direction: #{direction}"
       # close_connection
     end
   end
@@ -345,7 +367,7 @@ EOF
     if line =~ /^([^$]+)\$(\d+)$/ then
       @filename = $1
       offset = $2.to_i - 1 # it's 1-based
-      STDERR.puts "* Peer #{@remote_nick} requested: #{@filename}"
+      call_callback :get, @filename
       if @filename == "MyList.DcLst" then
         @fileio = StringIO.new(DCLST_FILE_LISTING_HE3)
         @fileio.pos = offset
@@ -376,6 +398,6 @@ EOF
   end
   
   def cmd_Error(line)
-    STDERR.puts "! Peer Error: #{line}"
+    call_callback :error, "Peer Error: #{line}"
   end
 end

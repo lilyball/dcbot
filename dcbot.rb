@@ -90,6 +90,12 @@ def setupConnection(host, port, nickname, description, sleep)
         end
       end
     end
+    c.registerCallback :error do |socket, message|
+      STDERR.puts "! #{message}"
+    end
+    c.registerCallback :peer_error do |socket, peer, message|
+      STDERR.puts "! Peer #{peer.host}:#{peer.port}"
+    end
     c.registerCallback :unbind do |socket|
       if c.quit then
         # this is our only socket for the moment
@@ -111,6 +117,18 @@ def setupConnection(host, port, nickname, description, sleep)
           setupConnection(host, port, nickname, description, 0)
         end
       end
+    end
+    c.registerCallback :reverse_connection do |socket, nick|
+      puts "* Bouncing RevConnectToMe back to user: #{nick}"
+    end
+    c.registerCallback :peer_initialized do |socket, peer|
+      puts "* Connecting to peer: #{peer.host}:#{peer.port}"
+    end
+    c.registerCallback :peer_unbind do |socket, peer|
+      puts "* Connection to peer #{peer.remote_nick} closed"
+    end
+    c.registerCallback :peer_get do |socket,peer,filename|
+      puts "* Peer #{peer.remote_nick} requested: #{filename}"
     end
   end
 end
