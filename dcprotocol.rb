@@ -261,7 +261,7 @@ class DCClientProtocol < DCProtocol
     @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
       c.parent = self
       c.registerCallback :unbind do |socket|
-        STDERR.puts "* Connection to peer closed"
+        STDERR.puts "* Connection to peer #{socket.remote_nick} closed"
         @peers.delete socket
       end
     end
@@ -293,6 +293,7 @@ EOF
   DCLST_FILE_LISTING_HE3 = he3_encode(DCLST_FILE_LISTING)
   
   attr_writer :parent
+  attr_reader :remote_nick
   
   def post_init
     super
@@ -335,13 +336,15 @@ EOF
   def cmd_Get(line)
     if line =~ /^([^$]+)\$(\d+)$/ then
       @filename = $1
-      @offset = $2.to_i - 1 # it's 1-based
-      @fileio = StringIO.new(DCLST_FILE_LISTING_HE3)
-      @fileio.pos = @offset
+      offset = $2.to_i - 1 # it's 1-based
+      STDERR.puts "* Peer #{@remote_nick} requested: #{@filename}"
       if @filename == "MyList.DcLst" then
+        @fileio = StringIO.new(DCLST_FILE_LISTING_HE3)
+        @fileio.pos = offset
         send_command "FileLength", @fileio.size - @fileio.pos
       else
         send_command "Error", "File Not Available"
+        close_connection_after_writing
       end
     else
       send_command "Error", "Unknown $Get format"
@@ -350,7 +353,7 @@ EOF
   end
   
   def cmd_Send(line)
-    if @filename.nil? then
+    if @fileio.nil? then
       # we haven't been asked for the file yet
       send_command "Error", "Unexpected $Send"
       close_connection_after_writing
