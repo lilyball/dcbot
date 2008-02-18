@@ -63,8 +63,8 @@ class DCProtocol < EventMachine::Connection
   end
   
   def receive_line(line)
-    line.chomp!("|")
     STDERR.puts "<- #{line}" if @debug
+    line.chomp!("|")
     line = unsanitize(line)
     cmd = line.slice!(/^\S+/)
     line.slice!(/^ /)
