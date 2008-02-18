@@ -70,9 +70,14 @@ class DCProtocol < EventMachine::Connection
     line.slice!(/^ /)
     
     if cmd =~ /^<.*>$/ then
-      # this must be a public message
+      # this is a specially-formatted command
+      # but lets handle it like other commands
       nick = cmd[1...-1]
-      call_callback :message, nick, line, false, false
+      if self.respond_to? "cmd_<>" then
+        self.send "cmd_<>", nick, line
+      else
+        call_callback :error, "Unknown command: <#{nick}> #{line}"
+      end
     elsif cmd =~ /^\$\S+$/ then
       # this is a proper command
       cmd.slice!(0)
@@ -245,6 +250,10 @@ class DCClientProtocol < DCProtocol
         call_callback :error, "Strange RevConnectToMe request: #{line}"
       end
     end
+  end
+  
+  define_method("cmd_<>") do |nick, line|
+    call_callback :message, nick, line, false
   end
   
   def cmd_To(line)
