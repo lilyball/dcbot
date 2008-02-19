@@ -3,3 +3,4 @@ Todo list:
 - Support magnet: URIs in !fill
 - !confirm to hide filled requests
 - track JUST ADDED
+- Support the Extended Protocol for client2client
