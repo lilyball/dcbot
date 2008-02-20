@@ -1,6 +1,7 @@
 require 'stringio'
 require 'cgi' # for entity-escaping
 require './he3'
+require './dcuser'
 
 class DCProtocol < EventMachine::Connection
   include EventMachine::Protocols::LineText2
@@ -52,8 +53,8 @@ class DCProtocol < EventMachine::Connection
     @callbacks[callback].each do |proc|
       begin
         proc.call(self, *args)
-      rescue e
-        STDERR.puts "Exception: #{e.message}\n#{e.backtrae}"
+      rescue Exception => e
+        STDERR.puts "Exception: #{e.message}\n#{e.backtrace}"
       end
     end
   end
@@ -146,7 +147,7 @@ class DCClientProtocol < DCProtocol
     close_connection
   end
   
-  attr_reader :nickname, :hubname, :quit
+  attr_reader :nickname, :hubname, :quit, :users
   
   # protocol implementation
   
@@ -195,16 +196,29 @@ class DCClientProtocol < DCProtocol
       send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}<RubyBot V:#{@config[:version]},M:P,H:1/0/0,S:#{@config[:slots]}>$", \
                              "$#{@config[:speed]}#{@config[:speed_class].chr}$#{@config[:email]}$0$"
     else
-      call_callback :user_connected, nick
+      user = DCUser.new(self, nick)
+      @users[nick] = user
+      call_callback :user_connected, user
     end
   end
   
   def cmd_NickList(line)
-    call_callback :nicklist, line.split("$$")
+    nicks = line.split("$$")
+    @users = {}
+    nicks.each do |nick|
+      @users[nick] = DCUser.new(self, nick)
+    end
+    call_callback :nicklist, @users.values
   end
   
   def cmd_OpList(line)
-    call_callback :oplist, line.split("$$")
+    nicks = line.split("$$")
+    nicks.each do |nick|
+      if @users.has_key? nick then
+        @users[nick].op = true
+      end
+    end
+    call_callback :oplist, @users.values.select { |user| user.op }
   end
   
   def cmd_MyINFO(line)
@@ -220,7 +234,11 @@ class DCClientProtocol < DCProtocol
       else
         speed_class = 0
       end
-      call_callback :info, nick, interest, speed, speed_class, email, sharesize unless nick == @nickname
+      user = @users[nick]
+      if user and user.nickname != @nickname then
+        user.setInfo(interest, speed, speed_class, email, sharesize)
+        call_callback :info, user
+      end
     end
   end
   
@@ -244,8 +262,19 @@ class DCClientProtocol < DCProtocol
       nick = $1
       mynick = $2
       if mynick == @nickname then
-        call_callback :reverse_connection, nick
-        send_command "RevConnectToMe", mynick, nick
+        user = @users[nick]
+        if user then
+          if not user.passive then
+            # the passive switch keeps us from bouncing RevConnectToMe's back and forth
+            user.passive = true
+            call_callback :reverse_connection, user
+            send_command "RevConnectToMe", mynick, nick
+          else
+            call_callback :reverse_connection_ignored, user
+          end
+        else
+          call_callback :error, "RevConnectToMe request from unknown user: #{nick}"
+        end
       else
         call_callback :error, "Strange RevConnectToMe request: #{line}"
       end
@@ -270,7 +299,13 @@ class DCClientProtocol < DCProtocol
   
   def cmd_Quit(line)
     nick = line
-    call_callback :user_quit, nick
+    user = @users[nick]
+    @users.delete nick
+    if user.nil? then
+      call_callback :error, "Unknown user Quit: #{nick}"
+    else
+      call_callback :user_quit, user
+    end
   end
   
   def cmd_Search(line)
@@ -299,6 +334,7 @@ class DCClientProtocol < DCProtocol
     super
     @quit = false
     @peers = []
+    @users = {}
     self.registerCallback :peer_unbind do |socket, peer|
       @peers.delete socket
     end
@@ -329,7 +365,7 @@ Send a /pm with !help for help
 EOF
   DCLST_FILE_LISTING_HE3 = he3_encode(DCLST_FILE_LISTING)
   
-  attr_reader :remote_nick, :host, :port
+  attr_reader :remote_user, :host, :port
   
   def post_init
     super
@@ -347,7 +383,12 @@ EOF
   end
   
   def cmd_MyNick(line)
-    @remote_nick = line
+    nick = line
+    @remote_user = @parent.users[nick]
+    if @remote_user.nil? then
+      # why are we being connected to by someone not on the hub?
+      @remote_user = DCUser.new(@parent, nick)
+    end
   end
   
   def cmd_Lock(line)

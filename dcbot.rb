@@ -96,7 +96,7 @@ def setupConnection(host, port, nickname, sockopts, sleep)
       STDERR.puts "! #{message}"
     end
     c.registerCallback :peer_error do |socket, peer, message|
-      STDERR.puts "! Peer #{peer.host}:#{peer.port}"
+      STDERR.puts "! Peer #{peer.host}:#{peer.port}: #{message}"
     end
     c.registerCallback :unbind do |socket|
       if c.quit then
@@ -120,17 +120,24 @@ def setupConnection(host, port, nickname, sockopts, sleep)
         end
       end
     end
-    c.registerCallback :reverse_connection do |socket, nick|
-      puts "* Bouncing RevConnectToMe back to user: #{nick}"
+    c.registerCallback :reverse_connection do |socket, user|
+      puts "* Bouncing RevConnectToMe back to user: #{user.nickname}"
+    end
+    c.registerCallback :reverse_connection_ignored do |socket, user|
+      puts "* Ignoring RevConnectToMe from user: #{user.nickname}"
     end
     c.registerCallback :peer_initialized do |socket, peer|
       puts "* Connecting to peer: #{peer.host}:#{peer.port}"
     end
     c.registerCallback :peer_unbind do |socket, peer|
-      puts "* Connection to peer #{peer.remote_nick} closed"
+      peer_id = "#{peer.host}:#{peer.port}"
+      if peer.remote_user then
+        peer_id << " (#{peer.remote_user.nickname})"
+      end
+      puts "* Connection to peer #{peer_id} closed"
     end
     c.registerCallback :peer_get do |socket,peer,filename|
-      puts "* Peer #{peer.remote_nick} requested: #{filename}"
+      puts "* Peer #{peer.remote_user.nickname} requested: #{filename}"
     end
   end
 end
