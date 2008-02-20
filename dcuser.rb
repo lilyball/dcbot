@@ -1,5 +1,6 @@
 class DCUser
-  attr_reader :hub, :nickname, :interest, :speed, :speed_class, :email, :sharesize
+  attr_reader :hub, :nickname
+  attr_reader :description, :tag, :speed, :speed_class, :email, :sharesize
   attr_accessor :passive, :op
   
   def initialize(hub, nickname)
@@ -13,8 +14,9 @@ class DCUser
     @hub.sendPrivateMessage(@nickname, message)
   end
   
-  def setInfo(interest, speed, speed_class, email, sharesize)
-    @interest = interest
+  def setInfo(description, tag, speed, speed_class, email, sharesize)
+    @description = description
+    @tag = tag
     @speed = speed
     @speed_class = speed_class
     @email = email

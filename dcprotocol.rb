@@ -228,6 +228,7 @@ class DCClientProtocol < DCProtocol
       speed = $3
       email = $4
       sharesize = $5
+      tag = interest.slice!(/<[^>]+>$/)
       if speed.length > 0 and speed[-1] < 0x20 then
         # assume last byte a control character means it's the speed class
         speed_class = speed.slice!(-1)
@@ -236,7 +237,7 @@ class DCClientProtocol < DCProtocol
       end
       user = @users[nick]
       if user and user.nickname != @nickname then
-        user.setInfo(interest, speed, speed_class, email, sharesize)
+        user.setInfo(interest, tag, speed, speed_class, email, sharesize)
         call_callback :info, user
       end
     end
