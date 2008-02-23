@@ -137,7 +137,7 @@ def setupConnection(host, port, nickname, sockopts, sleep)
     end
     c.registerCallback :peer_get do |socket,peer,filename|
       peer_id = "#{peer.host}:#{peer.port}"
-      peer_id < " (#{peer.remote_nick})" if peer.remote_nick
+      peer_id << " (#{peer.remote_nick})" if peer.remote_nick
       puts "* Peer #{peer_id} requested: #{filename}"
     end
   end

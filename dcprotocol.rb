@@ -438,10 +438,10 @@ EOF
   def cmd_Get(line)
     if line =~ /^([^$]+)\$(\d+)$/ then
       @state = :data
-      @filename = $1
+      filename = $1
       offset = $2.to_i - 1 # it's 1-based
-      call_callback :get, @filename
-      @fileio = get_file_io(@filename)
+      call_callback :get, filename
+      @fileio = get_file_io(filename)
       if @fileio then
         @fileio.pos = offset
         send_command "FileLength", @fileio.size - @fileio.pos
@@ -477,6 +477,7 @@ EOF
       flags = ($5 || "").split(" ")
       if flags.empty? then
         if type == "file" then
+          call_callback :get, identifier
           fileio = get_file_io(identifier)
           if fileio then
             fileio.pos = startpos
@@ -502,6 +503,7 @@ EOF
       startpos = $1.to_i
       length = $2.to_i
       filename = $3
+      call_callback :get, filename
       fileio = get_file_io(filename)
       if fileio then
         fileio.pos = startpos
