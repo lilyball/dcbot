@@ -8,6 +8,7 @@ Dependencies
 - RubyGems
 - ActiveRecord
 - EventMachine
+- libbz2
 
 Usage
 =====
