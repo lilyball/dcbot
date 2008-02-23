@@ -1,10 +1,18 @@
 require 'stringio'
 require 'cgi' # for entity-escaping
-require './he3'
+require 'bz2'
 require './dcuser'
 
 class DCProtocol < EventMachine::Connection
   include EventMachine::Protocols::LineText2
+  
+  CLIENT_NAME = "RubyBot"
+  CLIENT_VERSION = "0.1"
+  
+  def self.registerClientVersion(name, version)
+    CLIENT_NAME.replace name
+    CLIENT_VERSION.replace version
+  end
   
   def registerCallback(callback, &block)
     @callbacks[callback] << block
@@ -45,7 +53,7 @@ class DCProtocol < EventMachine::Connection
   end
   
   def send_data(data)
-    STDERR.puts "-> #{data}" if @debug
+    STDERR.puts "-> #{data.gsub(/[^\x20-\x7F]/, ".")}" if @debug
     super
   end
   
@@ -64,7 +72,7 @@ class DCProtocol < EventMachine::Connection
   end
   
   def receive_line(line)
-    STDERR.puts "<- #{line}" if @debug
+    STDERR.puts "<- #{line.gsub(/[^\x20-\x7F]/, ".")}" if @debug
     line.chomp!("|")
     line = unsanitize(line)
     cmd = line.slice!(/^\S+/)
@@ -114,7 +122,6 @@ class DCClientProtocol < DCProtocol
   #   speed
   #   speed_class
   #   email
-  #   version - version number for the tag
   #   slots - number of slots to declare as open
   def self.connect(host, port, nickname, args = {})
     EventMachine::connect(host, port, self) do |c|
@@ -126,7 +133,6 @@ class DCClientProtocol < DCProtocol
         @config[:speed] ||= "Bot"
         @config[:speed_class] ||= 1
         @config[:email] ||= ""
-        @config[:version] ||= "0.1"
         @config[:slots] ||= 0
       end
       yield c if block_given?
@@ -193,7 +199,7 @@ class DCClientProtocol < DCProtocol
       # this is us, we should respond
       send_command "Version", "1,0091"
       send_command "GetNickList"
-      send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}<RubyBot V:#{@config[:version]},M:P,H:1/0/0,S:#{@config[:slots]}>$", \
+      send_command "MyINFO", "$ALL #{@nickname} #{@config[:description]}<#{CLIENT_NAME} V:#{CLIENT_VERSION},M:P,H:1/0/0,S:#{@config[:slots]}>$", \
                              "$#{@config[:speed]}#{@config[:speed_class].chr}$#{@config[:email]}$0$"
     else
       user = DCUser.new(self, nick)
@@ -356,45 +362,57 @@ end
 class DCPeerProtocol < DCProtocol
   XML_FILE_LISTING = <<EOF
 <?xml version="1.0" encoding="utf-8"?>
-<FileListing Version="1" Generator="RubyBot">
+<FileListing Version="1" Generator="#{CLIENT_NAME} #{CLIENT_VERSION}">
 <Directory Name="Send a /pm with !help for help">
 </Directory>
 </FileListing>
 EOF
-  DCLST_FILE_LISTING = <<EOF
-Send a /pm with !help for help
-EOF
-  DCLST_FILE_LISTING_HE3 = he3_encode(DCLST_FILE_LISTING)
+  XML_FILE_LISTING_BZ2 = BZ2.bzip2(XML_FILE_LISTING)
   
-  attr_reader :remote_user, :host, :port
+  SUPPORTED_EXTENSIONS = ["ADCGet", "XmlBZList", "TTHF"]
+  
+  attr_reader :remote_nick, :host, :port, :state
   
   def post_init
     super
+    @state = :init
+    @supports = nil
+    self.registerCallback :error do |peer, message|
+      peer.send_command "Error", message unless peer.state == :data
+      peer.close_connection_after_writing
+    end
   end
   
   # callbacks triggered from the peer always begin with peer_
   def call_callback(name, *args)
+    super
     @parent.call_callback "peer_#{name.to_s}".to_sym, self, *args
   end
   
   def connection_completed
     super
     send_command "MyNick", @parent.nickname
-    send_command "Lock", "FOO", "Pk=BAR"
+    send_command "Lock", "EXTENDEDPROTOCOLABCABCABCABCABCABC", "Pk=#{CLIENT_NAME}#{CLIENT_VERSION}ABCABC"
   end
   
-  def cmd_MyNick(line)
-    nick = line
-    @remote_user = @parent.users[nick]
-    if @remote_user.nil? then
-      # why are we being connected to by someone not on the hub?
-      @remote_user = DCUser.new(@parent, nick)
+  def get_file_io(filename)
+    if filename == "files.xml.bz2" then
+      StringIO.new(XML_FILE_LISTING_BZ2)
+    else
+      nil
     end
+  end
+  
+  # Protocol hooks
+  
+  def cmd_MyNick(line)
+    @remote_nick = line
   end
   
   def cmd_Lock(line)
     lock = line.split(" ")[0]
     key = lockToKey(lock)
+    send_command "Supports", *SUPPORTED_EXTENSIONS if lock =~ /^EXTENDEDPROTOCOL/
     send_command "Direction", "Upload", rand(0x7FFF)
     send_command "Key", key
   end
@@ -410,19 +428,21 @@ EOF
       call_callback :error, "Unexpected peer direction: #{direction}"
       # close_connection
     end
+    @state = :normal
   end
   
-  def cmd_GetListLen(line)
-    send_command "ListLen", DCLST_FILE_LISTING_HE3.length
+  def cmd_Supports(line)
+    @supports = line.split(" ")
   end
   
   def cmd_Get(line)
     if line =~ /^([^$]+)\$(\d+)$/ then
+      @state = :data
       @filename = $1
       offset = $2.to_i - 1 # it's 1-based
       call_callback :get, @filename
-      if @filename == "MyList.DcLst" then
-        @fileio = StringIO.new(DCLST_FILE_LISTING_HE3)
+      @fileio = get_file_io(@filename)
+      if @fileio then
         @fileio.pos = offset
         send_command "FileLength", @fileio.size - @fileio.pos
       else
@@ -430,19 +450,69 @@ EOF
         close_connection_after_writing
       end
     else
-      send_command "Error", "Unknown $Get format"
-      close_connection_after_writing
+      call_callback :error, "Unknown $Get format"
     end
   end
   
   def cmd_Send(line)
-    if @fileio.nil? then
+    if @fileio.nil? or @state != :data then
       # we haven't been asked for the file yet
       send_command "Error", "Unexpected $Send"
       close_connection_after_writing
     else
       data = @fileio.read(40906)
       send_data data
+      if @fileio.eof? then
+        @state = :normal
+      end
+    end
+  end
+  
+  def cmd_ADCGET(line)
+    if line =~ /^(\w+) (.+) (\d+) (-?\d+)(?: (.+))?$/ then
+      type = $1
+      identifier = $2
+      startpos = $3.to_i
+      length = $4.to_i
+      flags = ($5 || "").split(" ")
+      if flags.empty? then
+        if type == "file" then
+          fileio = get_file_io(identifier)
+          if fileio then
+            fileio.pos = startpos
+            length = fileio.size - fileio.pos if length == -1
+            send_command "ADCSND", "file", identifier, startpos, length
+            send_data fileio.read(length)
+          else
+            send_command "Error", "File Not Available"
+          end
+        else
+          send_command "Error", "Unknown $ADCGET type: #{type}"
+        end
+      else
+        send_command "Error", "Unknown $ADCGET flags: #{flags.join(" ")}"
+      end
+    else
+      send_command "Error", "Unknown $ADCGET format"
+    end
+  end
+  
+  def cmd_UGetBlock(line)
+    if line =~ /^(\d+) (-?\d+) (.+)$/ then
+      startpos = $1.to_i
+      length = $2.to_i
+      filename = $3
+      fileio = get_file_io(filename)
+      if fileio then
+        fileio.pos = startpos
+        length = fileio.size - fileio.pos if length == -1
+        send_command "Sending", length
+        send_data fileio.read(length)
+      else
+        send_command "Failed", "File Not Available"
+      end
+    else
+      send_command "Failed", "Unknown $UGetBlock format"
     end
   end
   

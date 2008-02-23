@@ -13,6 +13,8 @@ SLEEP_TABLE = [1, 2, 5, 15, 30, 60, 120, 300]
 
 RUBYBOT_VERSION = "0.1"
 
+DCProtocol.registerClientVersion("RubyBot", RUBYBOT_VERSION)
+
 def main
   # parse args
   options = {}
@@ -56,8 +58,7 @@ def main
     EventMachine::open_keyboard KeyboardInput
     sockopts = { :description => description,
                  :debug => debug,
-                 :peer_debug => options[:peer_debug],
-                 :version => RUBYBOT_VERSION }
+                 :peer_debug => options[:peer_debug] }
     setupConnection(host, port, nickname, sockopts, 0)
   end
   puts "Shutting Down"
@@ -131,13 +132,13 @@ def setupConnection(host, port, nickname, sockopts, sleep)
     end
     c.registerCallback :peer_unbind do |socket, peer|
       peer_id = "#{peer.host}:#{peer.port}"
-      if peer.remote_user then
-        peer_id << " (#{peer.remote_user.nickname})"
-      end
+      peer_id << " (#{peer.remote_nick})" if peer.remote_nick
       puts "* Connection to peer #{peer_id} closed"
     end
     c.registerCallback :peer_get do |socket,peer,filename|
-      puts "* Peer #{peer.remote_user.nickname} requested: #{filename}"
+      peer_id = "#{peer.host}:#{peer.port}"
+      peer_id < " (#{peer.remote_nick})" if peer.remote_nick
+      puts "* Peer #{peer_id} requested: #{filename}"
     end
   end
 end
