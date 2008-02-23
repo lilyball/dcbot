@@ -61,7 +61,7 @@ def main
                  :peer_debug => options[:peer_debug] }
     setupConnection(host, port, nickname, sockopts, 0)
   end
-  puts "Shutting Down"
+  puts "Goodbye"
 end
 
 def setupConnection(host, port, nickname, sockopts, sleep)
@@ -141,6 +141,13 @@ def setupConnection(host, port, nickname, sockopts, sleep)
       puts "* Peer #{peer_id} requested: #{filename}"
     end
   end
+end
+
+Signal.trap 'INT' do
+  Signal.trap 'INT', 'DEFAULT'
+  STDERR.puts "\nShutting down..."
+  # TODO: cancel all client2client connections that are in a cancel-able state
+  EventMachine.stop_event_loop
 end
 
 main
