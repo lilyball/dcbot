@@ -24,7 +24,7 @@ class HelpPlugin < PluginBase
     about = <<EOF
 I am a Direct Connect bot written in Ruby.
 I was written by Kevin Ballard <kevin@sb.org>.
-My code is available at http://repo.or.cz/w/dcbot.git
+My code is available at http://github.com/kballard/dcbot/
 EOF
     about.split("\n").each do |line|
       socket.sendPrivateMessage(sender, line)
