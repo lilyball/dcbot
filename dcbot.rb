@@ -3,11 +3,12 @@
 require 'rubygems'
 require 'optparse'
 require 'eventmachine'
-require './config'
-require './dcprotocol'
-require './keyboard'
-require './plugin'
 require 'pp'
+dir = File.dirname(__FILE__)
+require "#{dir}/config"
+require "#{dir}/dcprotocol"
+require "#{dir}/keyboard"
+require "#{dir}/plugin"
 
 SLEEP_TABLE = [1, 2, 5, 15, 30, 60, 120, 300]
 

@@ -1,7 +1,7 @@
 require 'stringio'
 require 'cgi' # for entity-escaping
 require 'bz2'
-require './dcuser'
+require "#{File.dirname(__FILE__)}/dcuser"
 
 class DCProtocol < EventMachine::Connection
   include EventMachine::Protocols::LineText2
