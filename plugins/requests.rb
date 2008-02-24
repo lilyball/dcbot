@@ -49,12 +49,21 @@ Request.table_name = "requests" # do this because of the anonymous module crap
 
 class RequestPlugin < PluginBase
   TIME_FORMAT = "%a %b %d %H:%M:%S %Z %Y"
+  
+  def self.send_request_list(hub, user, requests)
+    format = "  #%-4d \"%s\" by %s - %s"
+    requests.each do |request|
+      message = format % [request.id, request.request, request.submitter, request.created_at.strftime(TIME_FORMAT)]
+      message << " - claimed by #{request.claimer}" if request.claimer
+      hub.sendPrivateMessage(user, message)
+    end
+  end
+  
   # !request
   def self.cmd_request(socket, sender, isprivate, args)
     args.strip!
     if args.blank? then
       HelpPlugin.send_usage(socket, sender, "request")
-      arghelp, desc = cmd_request_help
     else
       request = Request.new(:request => args, :submitter => sender)
       request.save!
@@ -77,18 +86,10 @@ class RequestPlugin < PluginBase
     else
       claimedRequests = openRequests.select { |req| req.claimer? }
       unclaimedRequests = openRequests.reject { |req| req.claimer? }
-      format = "  #%-4d \"%s\" by %s - %s"
       socket.sendPrivateMessage(sender, "Claimed requests:") unless claimedRequests.blank?
-      claimedRequests.each do |request|
-        message = format % [request.id, request.request, request.submitter, request.created_at.strftime(TIME_FORMAT)]
-        message << " - claimed by #{request.claimer}"
-        socket.sendPrivateMessage(sender, message)
-      end
+      send_request_list socket, sender, claimedRequests
       socket.sendPrivateMessage(sender, "Unclaimed requests:") unless unclaimedRequests.blank?
-      unclaimedRequests.each do |request|
-        message = format % [request.id, request.request, request.submitter, request.created_at.strftime(TIME_FORMAT)]
-        socket.sendPrivateMessage(sender, message)
-      end
+      send_request_list socket, sender, unclaimedRequests
     end
   end
   
@@ -258,5 +259,23 @@ class RequestPlugin < PluginBase
   
   def self.cmd_delete_help
     ["RequestNum", "Deletes a request you submitted. ex. #{CMD_PREFIX}delete 12"]
+  end
+  
+  def self.cmd_search(hub, sender, isprivate, args)
+    if args.blank? then
+      HelpPlugin.send_usage(hub, sender, "search")
+    else
+      requests = Request.find(:all, :conditions => ["filled_at IS NULL and request LIKE ?", "%#{args}%"])
+      if requests.blank? then
+        hub.sendPrivateMessage(sender, "No requests matched your query")
+      else
+        hub.sendPrivateMessage(sender, "Matched requests:")
+        send_request_list hub, sender, requests
+      end
+    end
+  end
+  
+  def self.cmd_search_help
+    ["SearchString", "Searches all requests for those matching SearchString"]
   end
 end
