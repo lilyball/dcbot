@@ -73,6 +73,7 @@ def setupConnection(host, port, nickname, sockopts, sleep)
       end
       if message[0,1] == PluginBase::CMD_PREFIX then
         cmd, args = message[1..-1].split(" ", 2)
+        cmd = "" if cmd.nil?
         args = "" if args.nil?
         cmd.downcase!
         if cmd == "reload" and isprivate then
