@@ -62,10 +62,8 @@ class PluginBase
   
   def self.initdb
     ActiveRecord::Base.establish_connection(
-      :adapter => "mysql",
-      :host => "localhost",
-      :username => "dcbot",
-      :database => "40thieves")
+      :adapter => "sqlite3",
+      :dbfile => "dcbot.db")
   end
 end
 
