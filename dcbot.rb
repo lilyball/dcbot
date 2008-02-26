@@ -74,6 +74,7 @@ def setupConnection(host, port, nickname, sockopts, sleep)
       if message[0,1] == PluginBase::CMD_PREFIX then
         cmd, args = message[1..-1].split(" ", 2)
         args = "" if args.nil?
+        cmd.downcase!
         if cmd == "reload" and isprivate then
           # special sekrit reload command
           PluginBase.loadPlugins
@@ -91,6 +92,15 @@ def setupConnection(host, port, nickname, sockopts, sleep)
           end
         elsif isprivate then
           socket.sendPrivateMessage(sender, "Unknown command: #{PluginBase::CMD_PREFIX}#{cmd}")
+        end
+      elsif message =~ /^40request:? /i then
+        # TODO: Pull this out into a plugin
+        # requires plugins to have hooks for general chat
+        message = "You probably meant to use !request. Please ask me !help for details."
+        if isprivate then
+          socket.sendPrivateMessage(sender, message)
+        else
+          socket.sendPublicMessage(message)
         end
       end
     end
