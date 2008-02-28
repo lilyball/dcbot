@@ -62,7 +62,8 @@ class DCProtocol < EventMachine::Connection
       begin
         proc.call(self, *args)
       rescue Exception => e
-        STDERR.puts "Exception: #{e.message}\n#{e.backtrace}"
+        STDERR.puts "! Exception: #{e.message}"
+        STDERR.puts e.backtrace.join("\n")
       end
     end
   end
@@ -322,16 +323,20 @@ class DCClientProtocol < DCProtocol
   # utility methods
   
   def connect_to_peer(ip, port)
-    @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
-      parent = self
-      debug = @debug || @config[:peer_debug]
-      c.instance_eval do
-        @parent = parent
-        @host = ip
-        @port = port
-        @debug = debug
+    begin
+      @peers << EventMachine::connect(ip, port, DCPeerProtocol) do |c|
+        parent = self
+        debug = @debug || @config[:peer_debug]
+        c.instance_eval do
+          @parent = parent
+          @host = ip
+          @port = port
+          @debug = debug
+        end
+        c.call_callback :initialized
       end
-      c.call_callback :initialized
+    rescue Exception => e
+      call_callback :exception, "Could not connect to peer #{ip}:#{port}", e
     end
   end
   

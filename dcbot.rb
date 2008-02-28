@@ -108,6 +108,11 @@ def setupConnection(host, port, nickname, sockopts, sleep)
     c.registerCallback :error do |socket, message|
       STDERR.puts "! #{message}"
     end
+    c.registerCallback :exception do |socket, message, exception|
+      STDERR.puts "! #{message}"
+      STDERR.puts exception.message
+      PP.pp(exception.backtrace, STDERR)
+    end
     c.registerCallback :peer_error do |socket, peer, message|
       STDERR.puts "! Peer #{peer.host}:#{peer.port}: #{message}"
     end
