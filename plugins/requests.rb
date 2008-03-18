@@ -90,6 +90,7 @@ class RequestPlugin < PluginBase
       send_request_list socket, sender, claimedRequests
       socket.sendPrivateMessage(sender, "Unclaimed requests:") unless unclaimedRequests.blank?
       send_request_list socket, sender, unclaimedRequests
+	  socket.sendPrivateMessage(sender, "Total: #{claimedRequests.size} claimed, #{unclaimedRequests.size} unclaimed")
     end
   end
   
